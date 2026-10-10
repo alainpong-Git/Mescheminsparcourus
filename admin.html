@@ -36,7 +36,7 @@ async function loadEmbedded(){
  const r=await fetch('./index.html',{cache:'no-store'});if(!r.ok)throw Error('Lecture du site impossible : '+r.status);
  const s=await r.text();const marker='const hikes=';const start=s.indexOf(marker);if(start<0)throw Error('Catalogue historique introuvable');
  const from=start+marker.length,end=s.indexOf(';',from);if(end<0)throw Error('Fin du catalogue introuvable');
- const data=JSON.parse(s.slice(from,end));if(!Array.isArray(data)||!data.length)throw Error('Catalogue historique vide');
+ const data=JSON.parse(s.slice(from,end).replace(/:\s*NaN(?=\s*[,}\]])/g,':null'));if(!Array.isArray(data)||!data.length)throw Error('Catalogue historique vide');
  embedded=data;return data.length;
 }
 const embeddedReady=loadEmbedded();
