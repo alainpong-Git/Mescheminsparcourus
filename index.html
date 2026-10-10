@@ -96,4 +96,20 @@ $('backup-btn').onclick=()=>{const payload={application:'Mes chemins parcourus',
 $('restore-btn').onclick=()=>$('restore-file').click();
 $('restore-file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>25000000)throw Error('Sauvegarde trop volumineuse.');const data=JSON.parse(await f.text());if(data.application!=='Mes chemins parcourus'||!Array.isArray(data.activities))throw Error('Ce fichier n’est pas une sauvegarde valide de cette application.');if(data.activities.length>1000)throw Error('Trop de randonnées dans la sauvegarde.');let count=0;for(const h of data.activities){if(validHike(h)&&addPersonal(h,true))count++}storePersonal(personal());alert(count+' nouvelle(s) randonnée(s) restaurée(s). Les sorties déjà présentes ont été ignorées.')}catch(err){alert('Restauration impossible : '+err.message)}finally{e.target.value=''}});
 restoreLocal();stats();renderBook();
+// Catalogue public complémentaire : mise à jour via un simple fichier JSON GitHub.
+(async function loadPublishedHikes(){
+  try{
+    const response=await fetch('./randos-publiees.json',{cache:'no-store'});
+    if(!response.ok) return;
+    const data=await response.json();
+    if(data.application!=='Mes chemins parcourus'||!Array.isArray(data.activities))return;
+    let count=0;
+    for(const item of data.activities){
+      if(!validHike(item)||isDuplicate(item))continue;
+      const h={...item,personal:false};
+      hikes.unshift(h);addMarker(h);count++;
+    }
+    if(count){refreshYears();stats();renderBook();renderMapResults();updateLocalCount()}
+  }catch(err){console.warn('Catalogue public complémentaire indisponible',err)}
+})();
 </script></body></html>
