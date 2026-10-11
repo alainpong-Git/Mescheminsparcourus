@@ -144,4 +144,48 @@ async function updatePhoto(remove){
 }
 $('save-photo').onclick=()=>updatePhoto(false);
 $('remove-photo').onclick=()=>updatePhoto(true);
+
+function validRestoredHike(h){
+ return h&&typeof h.name==='string'&&h.name.trim().length>0&&h.name.length<=150
+ &&/^\d{4}-\d{2}-\d{2}$/.test(h.date)&&Number.isFinite(h.distance)&&h.distance>=0&&h.distance<=1000
+ &&Number.isFinite(h.ascent)&&h.ascent>=0&&h.ascent<=20000
+ &&typeof h.duration==='string'&&/^\d{1,3}:\d{2}:\d{2}$/.test(h.duration)
+ &&['Randonnée','Raquette à neige','Randonnée reclassée'].includes(h.type)
+ &&Array.isArray(h.gps)&&h.gps.length>=2&&h.gps.length<=100000
+ &&h.gps.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&Math.abs(p[0])<=90&&Math.abs(p[1])<=180);
+}
+function downloadJson(data){
+ const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+ const a=document.createElement('a');a.href=url;a.download='mes_chemins_sauvegarde_'+new Date().toISOString().slice(0,10)+'.json';
+ document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+}
+$('backup-btn').onclick=async()=>{
+ try{
+  status('Préparation de la sauvegarde…');await refresh();
+  downloadJson({application:'Mes chemins parcourus',version:1,exportedAt:new Date().toISOString(),activities:active()});
+  status('Sauvegarde téléchargée : '+active().length+' randonnées.');
+ }catch(e){status('Échec de sauvegarde : '+e.message)}
+};
+$('restore-btn').onclick=()=>$('restore-file').click();
+$('restore-file').onchange=async e=>{
+ const file=e.target.files[0];if(!file)return;
+ try{
+  if(file.size>100e6)throw Error('Fichier trop volumineux (100 Mo maximum).');
+  const data=JSON.parse(await file.text());
+  if(data.application!=='Mes chemins parcourus'||!Array.isArray(data.activities)||data.activities.length>2000)
+   throw Error('Format de sauvegarde invalide.');
+  if(data.activities.some(h=>!validRestoredHike(h)))throw Error('Certaines randonnées contiennent des données invalides.');
+  status('Vérification des randonnées sur GitHub…');await refresh();
+  const known=new Set([...embedded,...published].map(sig));
+  const additions=[];
+  for(const h of data.activities){const key=sig(h);if(!known.has(key)){known.add(key);additions.push({...h,personal:false})}}
+  if(!additions.length){status('Aucune nouvelle randonnée à restaurer : tout est déjà présent.');return}
+  if(!confirm('Publier '+additions.length+' randonnée(s) manquante(s) sur GitHub ? Les randonnées existantes seront conservées.'))return;
+  published.push(...additions);
+  await writeJson('randos-publiees.json',{application:'Mes chemins parcourus',version:1,activities:published},
+    'Restaurer '+additions.length+' randonnées depuis une sauvegarde');
+  render();status(additions.length+' randonnée(s) restaurée(s) et publiée(s). Actualise le site public dans quelques minutes.');
+ }catch(err){status('Restauration impossible : '+err.message)}
+ finally{e.target.value=''}
+};
 </script></body></html>
